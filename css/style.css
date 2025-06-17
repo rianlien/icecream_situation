@@ -1,0 +1,29 @@
+/*
+ * style.css
+ * カスタムスタイルをここに記述します。
+ * Tailwind CSSのユーティリティクラスで対応できない、
+ * または上書きしたいスタイルがある場合に使用します。
+ */
+
+/* body要素にはTailwindクラスが適用されているため、
+   通常はここに直接bodyスタイルを記述する必要はありません。
+   例: フォントや背景色の調整など、Tailwindのconfigで
+   カスタマイズするほどではないが、特定の値を使いたい場合。 */
+
+/* .card クラスのスタイル例 (Tailwindで設定済みのため、これは説明用です) */
+/* .card {
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+} */
+
+/* スクロールバーのスタイルは、bodyタグのstyleブロックから
+   こちらに移動させることも可能です。 */
+body::-webkit-scrollbar {
+    width: 8px;
+}
+body::-webkit-scrollbar-track {
+    background: #e0e0e0;
+}
+body::-webkit-scrollbar-thumb {
+    background-color: #a0a0a0;
+    border-radius: 4px;
+}
