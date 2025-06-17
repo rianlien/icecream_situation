@@ -9,7 +9,7 @@ const TOKEN_CONTRACT_ADDRESS = '0xd73140ee4b85d9a7797573692ef97c7d3d0cd776';
 // ⚠️ 注意: クライアントサイドでのAPIキーの直接記述はセキュリティリスクがあるため、
 // 本番運用ではバックエンド経由でAPIを呼び出すことを強く推奨します。
 // 今回はローカル環境での開発のため、このままで進めます。
-const POLYGONSCAN_API_KEY = 'AK4HC4VZ8524VSQIVBVNM581Q212VRBTJY'; // ここにAPIキーを設定してください
+//const POLYGONSCAN_API_KEY = 'AK4HC4VZ8524VSQIVBVNM581Q212VRBTJY'; // ここにAPIキーを設定してください
 
 // メッセージ表示用の要素を作成（alertの代わり）
 function showMessage(message) {
@@ -63,6 +63,14 @@ function setLoading(isLoading) {
 async function fetchDataAndDisplay() {
     console.log("Fetching data...");
     setLoading(true); // ローディング表示を開始
+
+    // config.jsで定義されたPOLYGONSCAN_API_KEYを使用
+    // config.jsがmain.jsより先に読み込まれることを前提とします
+    if (typeof POLYGONSCAN_API_KEY === 'undefined' || POLYGONSCAN_API_KEY === 'YOUR_POLYGONSCAN_API_KEY') {
+        showMessage('エラー: PolygonScan APIキーが設定されていません。js/config.jsを確認してください。');
+        setLoading(false);
+        return; // APIキーがない場合は処理を中断
+    }
 
     try {
         const url = `https://api.polygonscan.com/api?module=account&action=tokennfttx&contractaddress=${TOKEN_CONTRACT_ADDRESS}&page=1&offset=10000&sort=asc&apikey=${POLYGONSCAN_API_KEY}`;
