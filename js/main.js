@@ -1,3 +1,5 @@
+
+
 // js/main.js
 
 // バックエンドサーバーのエンドポイント
@@ -47,6 +49,25 @@ function setLoading(isLoading) {
             }
         }
     });
+    // グラフのローディングメッセージも更新
+    const graphContainer = document.getElementById('network-graph-container');
+    const graphIframe = document.getElementById('graph-commons-iframe');
+    const graphMessage = document.getElementById('graph-message'); // 新しく追加するメッセージ要素
+
+    if (graphContainer && graphIframe) {
+        if (isLoading) {
+            graphIframe.classList.add('hidden'); // iframeを非表示に
+            if (graphMessage) {
+                graphMessage.textContent = 'グラフデータを準備中...バックエンドが必要です。';
+                graphMessage.classList.remove('hidden');
+            }
+        } else {
+            if (graphMessage) {
+                graphMessage.classList.add('hidden'); // メッセージを非表示に
+            }
+            // データ取得完了後、グラフの表示はfetchDataAndDisplayが担う
+        }
+    }
 }
 
 // データを取得して画面に表示する関数
@@ -106,6 +127,32 @@ async function fetchDataAndDisplay() {
 
         const progressColor = milestoneProgressCircle.classList.contains('achieved') ? '#22c55e' : '#a855f7';
         milestoneProgressCircle.style.background = `conic-gradient(${progressColor} 0% ${milestoneProgress}%, #d1d5db ${milestoneProgress}% 100%)`;
+
+        // Graph Commonsの埋め込みURLを設定
+        const graphCommonsIframe = document.getElementById('graph-commons-iframe');
+        const graphContainer = document.getElementById('network-graph-container');
+        const graphMessage = document.getElementById('graph-message'); // 新しく追加するメッセージ要素
+
+        if (data.graphCommonsEmbedUrl) {
+            if (graphCommonsIframe) { // iframe要素が存在するか確認
+                graphCommonsIframe.src = data.graphCommonsEmbedUrl;
+                graphCommonsIframe.classList.remove('hidden');
+                if (graphMessage) graphMessage.classList.add('hidden'); // メッセージを非表示に
+                console.log("Graph Commons embed URL loaded:", data.graphCommonsEmbedUrl);
+            } else {
+                console.error("Error: graph-commons-iframe element not found in the DOM.");
+                if (graphMessage) {
+                    graphMessage.textContent = `Graph Commonsグラフの表示要素が見つかりませんでした。HTMLファイルを確認してください。`;
+                    graphMessage.classList.remove('hidden');
+                }
+            }
+        } else {
+            if (graphCommonsIframe) graphCommonsIframe.classList.add('hidden'); // iframeを非表示に
+            if (graphMessage) {
+                graphMessage.textContent = `Graph Commonsグラフを表示できませんでした。バックエンドのログを確認するか、Graph Commonsの設定を確認してください。`;
+                graphMessage.classList.remove('hidden');
+            }
+        }
 
     } catch (error) {
         console.error('Error fetching data from backend:', error);
