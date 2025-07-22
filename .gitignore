@@ -1,1 +1,5 @@
-config.js
+js/config.js
+backend/.env
+backend/data.json
+# backend/
+backend/.env
