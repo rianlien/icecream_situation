@@ -135,10 +135,10 @@ async function fetchDataAndDisplay() {
 
         if (data.graphCommonsEmbedUrl) {
             if (graphCommonsIframe) { // iframe要素が存在するか確認
-                graphCommonsIframe.src = data.graphCommonsEmbedUrl;
+                graphCommonsIframe.src = data.graphCommonsEmbedUrl.replace('/embed', ''); // embedを削除
                 graphCommonsIframe.classList.remove('hidden');
                 if (graphMessage) graphMessage.classList.add('hidden'); // メッセージを非表示に
-                console.log("Graph Commons embed URL loaded:", data.graphCommonsEmbedUrl);
+                console.log("Graph Commons URL loaded:", data.graphCommonsEmbedUrl.replace('/embed', ''));
             } else {
                 console.error("Error: graph-commons-iframe element not found in the DOM.");
                 if (graphMessage) {
