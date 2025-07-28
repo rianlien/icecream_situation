@@ -57,6 +57,38 @@ const fetchAndCacheData = async () => {
     const maxVanillaInvites = vanillaInviterCounts.size > 0 ? Math.max(...vanillaInviterCounts.values()) : 0;
     const maxChocomintInvites = chocomintInviterCounts.size > 0 ? Math.max(...chocomintInviterCounts.values()) : 0;
 
+    // すべてのユニークなアドレスを抽出
+    const allAddresses = Array.from(new Set([
+        ...transfers.map(t => t.from.toLowerCase().startsWith('0x5b479e186a10d25d') ? '0x0000000000000000000000000000000000000000' : t.from),
+        ...transfers.map(t => t.to.toLowerCase().startsWith('0x5b479e186a10d25d') ? '0x0000000000000000000000000000000000000000' : t.to)
+    ]));
+
+    // リンクデータを生成 (自己ループは除外)
+    const links = transfers.filter(t => t.from !== t.to).map(t => {
+        let sourceAddress = t.from;
+        // 0x5b479e186a10d25dから始まるノードのリンク元を0x0000000000000000000000000000000000000000に書き換える
+        if (sourceAddress.toLowerCase().startsWith('0x5b479e186a10d25d')) {
+            sourceAddress = '0x0000000000000000000000000000000000000000';
+        }
+        return {
+            source: sourceAddress,
+            target: t.to,
+            value: 1,
+            tokenId: parseInt(t.tokenID)
+        };
+    });
+
+    // 各ノードの接続数を計算
+    const connectionCounts = allAddresses.reduce((acc, address) => {
+        acc[address] = 0;
+        return acc;
+    }, {});
+
+    links.forEach(link => {
+        connectionCounts[link.source] = (connectionCounts[link.source] || 0) + 1;
+        connectionCounts[link.target] = (connectionCounts[link.target] || 0) + 1;
+    });
+
     const processedData = {
       vanillaMembersCount: vanillaMembers.size,
       chocomintMembersCount: chocomintMembers.size,
@@ -66,19 +98,18 @@ const fetchAndCacheData = async () => {
       chocomintTopInviterCount: maxChocomintInvites,
       lastUpdated: new Date().toISOString(),
       network: {
-          nodes: Array.from(new Set([...transfers.map(t => t.from), ...transfers.map(t => t.to)])).map(address => {
+          nodes: allAddresses.map(address => {
               let type = 'normal-wallet';
               if (address === '0x0000000000000000000000000000000000000000') type = 'mint-address';
               else if (vanillaMembers.has(address)) type = 'vanilla-member';
               else if (chocomintMembers.has(address)) type = 'chocomint-member';
-              return { id: address, type: type };
+              return { 
+                  id: address, 
+                  type: type,
+                  connectionCount: connectionCounts[address] || 0 // 確実に数値が入る
+              };
           }),
-          links: transfers.map(t => ({
-              source: t.from,
-              target: t.to,
-              value: 1,
-              tokenId: parseInt(t.tokenID)
-          }))
+          links: links
       }
     };
 
