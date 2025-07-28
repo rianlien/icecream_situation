@@ -72,12 +72,6 @@ function drawNetworkGraph(nodes, links) {
     const svg = d3.select("#d3-graph")
         .attr("viewBox", [0, 0, width, height]);
 
-    const simulation = d3.forceSimulation(nodes)
-        .force("link", d3.forceLink(links).id(d => d.id).distance(50))
-        .force("charge", d3.forceManyBody().strength(-150))
-        .force("center", d3.forceCenter(width / 2, height / 2));
-
-    // ★ 順番を変更: 先にリンクを描画
     const link = svg.append("g")
         .attr("stroke", "#999")
         .attr("stroke-opacity", 0.6)
@@ -91,14 +85,13 @@ function drawNetworkGraph(nodes, links) {
             return '#999'; // デフォルト
         });
 
-    // ★ 後からノードを描画することで、常に前面に表示される
     const node = svg.append("g")
         .attr("stroke", "#fff")
         .attr("stroke-width", 1.5)
         .selectAll("circle")
         .data(nodes)
         .join("circle")
-        .attr("r", 5)
+        .attr("r", 5) // ★ サイズを固定値に戻す
         .attr("fill", d => {
             if (d.type === 'vanilla-member') return '#fbbf24'; // 黄色
             if (d.type === 'chocomint-member') return '#34d399'; // 緑
@@ -118,42 +111,37 @@ function drawNetworkGraph(nodes, links) {
             d3.select("#tooltip").classed("hidden", true);
         });
 
-    node.append("title")
-        .text(d => d.id);
+    const simulation = d3.forceSimulation(nodes)
+        .force("link", d3.forceLink(links).id(d => d.id).distance(50))
+        .force("charge", d3.forceManyBody().strength(-150))
+        .force("center", d3.forceCenter(width / 2, height / 2))
+        .on("tick", () => {
+            link
+                .attr("x1", d => d.source.x)
+                .attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x)
+                .attr("y2", d => d.target.y);
 
-    simulation.on("tick", () => {
-        link
-            .attr("x1", d => d.source.x)
-            .attr("y1", d => d.source.y)
-            .attr("x2", d => d.target.x)
-            .attr("y2", d => d.target.y);
-
-        node
-            .attr("cx", d => d.x)
-            .attr("cy", d => d.y);
-    });
+            node
+                .attr("cx", d => d.x)
+                .attr("cy", d => d.y);
+        });
 
     node.call(d3.drag()
-        .on("start", dragstarted)
-        .on("drag", dragged)
-        .on("end", dragended));
-
-    function dragstarted(event, d) {
-        if (!event.active) simulation.alphaTarget(0.3).restart();
-        d.fx = d.x;
-        d.fy = d.y;
-    }
-
-    function dragged(event, d) {
-        d.fx = event.x;
-        d.fy = event.y;
-    }
-
-    function dragended(event, d) {
-        if (!event.active) simulation.alphaTarget(0);
-        d.fx = null;
-        d.fy = null;
-    }
+        .on("start", (event, d) => {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        })
+        .on("drag", (event, d) => {
+            d.fx = event.x;
+            d.fy = event.y;
+        })
+        .on("end", (event, d) => {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }));
 }
 
 // データを取得して画面に表示する関数

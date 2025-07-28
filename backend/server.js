@@ -98,7 +98,6 @@ app.get('/api/data', async (req, res) => {
     console.log(`[${new Date().toISOString()}] APIリクエスト受信。キャッシュからデータを返します。`);
     res.json(JSON.parse(cachedData));
   } catch (error) {
-    // キャッシュがない場合は、503 Service Unavailableを返すのが一般的
     console.error(`[${new Date().toISOString()}] APIリクエスト受信。キャッシュファイルが見つかりません。`, error);
     res.status(503).json({ message: 'サービス準備中です。しばらくしてから再度お試しください。' });
   }
@@ -107,5 +106,10 @@ app.get('/api/data', async (req, res) => {
 // === サーバー起動と定期更新 ===
 app.listen(port, () => {
   console.log(`Backend server is running on http://localhost:${port}`);
-  console.log('APIリクエストを待機しています...');
+  
+  // サーバー起動時にまず一度、データを取得してキャッシュを作成
+  fetchAndCacheData();
+
+  // その後、1時間ごとにバックグラウンドでキャッシュを更新
+  setInterval(fetchAndCacheData, UPDATE_INTERVAL_MS);
 });
