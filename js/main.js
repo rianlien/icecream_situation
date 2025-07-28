@@ -1,5 +1,3 @@
-
-
 // js/main.js
 
 // バックエンドサーバーのエンドポイント
@@ -50,23 +48,111 @@ function setLoading(isLoading) {
         }
     });
     // グラフのローディングメッセージも更新
-    const graphContainer = document.getElementById('network-graph-container');
-    const graphIframe = document.getElementById('graph-commons-iframe');
-    const graphMessage = document.getElementById('graph-message'); // 新しく追加するメッセージ要素
-
-    if (graphContainer && graphIframe) {
-        if (isLoading) {
-            graphIframe.classList.add('hidden'); // iframeを非表示に
-            if (graphMessage) {
-                graphMessage.textContent = 'グラフデータを準備中...バックエンドが必要です。';
-                graphMessage.classList.remove('hidden');
-            }
-        } else {
-            if (graphMessage) {
-                graphMessage.classList.add('hidden'); // メッセージを非表示に
-            }
-            // データ取得完了後、グラフの表示はfetchDataAndDisplayが担う
+    const graphMessage = document.getElementById('graph-message');
+    if (isLoading) {
+        document.getElementById('d3-graph').innerHTML = ''; // グラフをクリア
+        if(graphMessage) {
+            graphMessage.textContent = 'グラフデータを準備中...';
+            graphMessage.classList.remove('hidden');
         }
+    } else {
+        if(graphMessage) {
+            graphMessage.classList.add('hidden');
+        }
+    }
+}
+
+// D3.jsでネットワークグラフを描画する関数
+function drawNetworkGraph(nodes, links) {
+    const container = document.getElementById('network-graph-container');
+    if (!container) return;
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    const svg = d3.select("#d3-graph")
+        .attr("viewBox", [0, 0, width, height]);
+
+    const simulation = d3.forceSimulation(nodes)
+        .force("link", d3.forceLink(links).id(d => d.id).distance(50))
+        .force("charge", d3.forceManyBody().strength(-150))
+        .force("center", d3.forceCenter(width / 2, height / 2));
+
+    // ★ 順番を変更: 先にリンクを描画
+    const link = svg.append("g")
+        .attr("stroke", "#999")
+        .attr("stroke-opacity", 0.6)
+        .selectAll("line")
+        .data(links)
+        .join("line")
+        .attr("stroke-width", 1.5)
+        .attr("stroke", d => {
+            if (d.tokenId === 0 || d.tokenId === 1) return '#fdba74'; // 薄いオレンジ
+            if (d.tokenId === 2 || d.tokenId === 3) return '#6ee7b7'; // 緑
+            return '#999'; // デフォルト
+        });
+
+    // ★ 後からノードを描画することで、常に前面に表示される
+    const node = svg.append("g")
+        .attr("stroke", "#fff")
+        .attr("stroke-width", 1.5)
+        .selectAll("circle")
+        .data(nodes)
+        .join("circle")
+        .attr("r", 5)
+        .attr("fill", d => {
+            if (d.type === 'vanilla-member') return '#fbbf24'; // 黄色
+            if (d.type === 'chocomint-member') return '#34d399'; // 緑
+            if (d.type === 'mint-address') return '#9ca3af'; // グレー
+            if (d.type === 'normal-wallet') return '#3b82f6'; // 紺色 (青)
+            return '#ccc'; // デフォルト
+        })
+        .on("mouseover", (event, d) => {
+            const tooltip = d3.select("#tooltip");
+            tooltip.style("opacity", 1)
+                   .style("left", (event.pageX + 10) + "px")
+                   .style("top", (event.pageY - 28) + "px")
+                   .html(d.id);
+            tooltip.classed("hidden", false);
+        })
+        .on("mouseout", () => {
+            d3.select("#tooltip").classed("hidden", true);
+        });
+
+    node.append("title")
+        .text(d => d.id);
+
+    simulation.on("tick", () => {
+        link
+            .attr("x1", d => d.source.x)
+            .attr("y1", d => d.source.y)
+            .attr("x2", d => d.target.x)
+            .attr("y2", d => d.target.y);
+
+        node
+            .attr("cx", d => d.x)
+            .attr("cy", d => d.y);
+    });
+
+    node.call(d3.drag()
+        .on("start", dragstarted)
+        .on("drag", dragged)
+        .on("end", dragended));
+
+    function dragstarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+    }
+
+    function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+    }
+
+    function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
     }
 }
 
@@ -128,30 +214,13 @@ async function fetchDataAndDisplay() {
         const progressColor = milestoneProgressCircle.classList.contains('achieved') ? '#22c55e' : '#a855f7';
         milestoneProgressCircle.style.background = `conic-gradient(${progressColor} 0% ${milestoneProgress}%, #d1d5db ${milestoneProgress}% 100%)`;
 
-        // Graph Commonsの埋め込みURLを設定
-        const graphCommonsIframe = document.getElementById('graph-commons-iframe');
-        const graphContainer = document.getElementById('network-graph-container');
-        const graphMessage = document.getElementById('graph-message'); // 新しく追加するメッセージ要素
-
-        if (data.graphCommonsEmbedUrl) {
-            if (graphCommonsIframe) { // iframe要素が存在するか確認
-                graphCommonsIframe.src = data.graphCommonsEmbedUrl.replace('/embed', ''); // embedを削除
-                graphCommonsIframe.classList.remove('hidden');
-                if (graphMessage) graphMessage.classList.add('hidden'); // メッセージを非表示に
-                console.log("Graph Commons URL loaded:", data.graphCommonsEmbedUrl.replace('/embed', ''));
-            } else {
-                console.error("Error: graph-commons-iframe element not found in the DOM.");
-                if (graphMessage) {
-                    graphMessage.textContent = `Graph Commonsグラフの表示要素が見つかりませんでした。HTMLファイルを確認してください。`;
-                    graphMessage.classList.remove('hidden');
-                }
-            }
+        // D3.jsでネットワークグラフを描画
+        if (data.network && data.network.nodes && data.network.links) {
+            document.getElementById('d3-graph').innerHTML = ''; // 既存のグラフをクリア
+            drawNetworkGraph(data.network.nodes, data.network.links);
         } else {
-            if (graphCommonsIframe) graphCommonsIframe.classList.add('hidden'); // iframeを非表示に
-            if (graphMessage) {
-                graphMessage.textContent = `Graph Commonsグラフを表示できませんでした。バックエンドのログを確認するか、Graph Commonsの設定を確認してください。`;
-                graphMessage.classList.remove('hidden');
-            }
+            document.getElementById('graph-message').textContent = 'ネットワークデータを取得できませんでした。';
+            document.getElementById('graph-message').classList.remove('hidden');
         }
 
     } catch (error) {
@@ -174,7 +243,4 @@ window.onload = () => {
     document.getElementById('join-chocomint-button').addEventListener('click', () => {
         showMessage('チョコミント派に入るボタンがクリックされました！\n(この機能はまだ実装されていません)');
     });
-
-    // 3分ごとにデータを自動更新
-    setInterval(fetchDataAndDisplay, 180000); // 180000ミリ秒 = 3分
 };

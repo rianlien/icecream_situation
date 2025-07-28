@@ -8,35 +8,28 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// --- 環境変数 ---
 const POLYGONSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY;
 const TOKEN_CONTRACT_ADDRESS = '0xd73140ee4b85d9a7797573692ef97c7d3d0cd776';
 const CACHE_FILE_PATH = path.join(__dirname, 'data.json');
+const UPDATE_INTERVAL_MS = 60 * 60 * 1000; // 1時間
 
-// ★★★ 表示したい、既存のGraph CommonsグラフID ★★★
-const GC_GRAPH_ID = process.env.GC_GRAPH_ID;
-
-// CORS設定
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
-// === メイン処理 ===
-// サーバー起動時に一度だけ実行されるメイン処理
-const initialize = async () => {
-  console.log('--- 初期化処理を開始 --- ');
+// PolygonScanからデータを取得し、加工してファイルに保存するメイン関数
+const fetchAndCacheData = async () => {
+  console.log(`[${new Date().toISOString()}] --- データ更新処理を開始 ---`);
   try {
-    // 1. PolygonScanからデータを取得
-    console.log('1. PolygonScanからデータを取得中...');
+    console.log('  -> PolygonScanから最新データを取得します。');
     if (!POLYGONSCAN_API_KEY) throw new Error('POLYGONSCAN_API_KEYが設定されていません。');
     const url = `https://api.polygonscan.com/api?module=account&action=tokennfttx&contractaddress=${TOKEN_CONTRACT_ADDRESS}&page=1&offset=10000&sort=asc&apikey=${POLYGONSCAN_API_KEY}`;
     const response = await fetch(url);
     const data = await response.json();
     if (data.status !== '1') throw new Error(`PolygonScanからのデータ取得失敗: ${data.message}`);
     const transfers = data.result;
-    console.log(`${transfers.length}件のトランザクションを取得しました。`);
+    console.log(`     ${transfers.length}件のトランザクションを取得しました。`);
 
-    // 2. フロントエンド用の集計データを計算
-    console.log('2. フロントエンド用のデータを集計中...');
+    console.log('  -> フロントエンド用のデータを集計・加工中...');
     let vanillaMembers = new Set();
     let chocomintMembers = new Set();
     let vanillaInviteCount = 0;
@@ -49,11 +42,8 @@ const initialize = async () => {
       const fromAddress = tx.from.toLowerCase();
       const toAddress = tx.to.toLowerCase();
 
-      if (tokenId === 1 && toAddress !== '0x0000000000000000000000000000000000000000') {
-        vanillaMembers.add(toAddress);
-      } else if (tokenId === 3 && toAddress !== '0x0000000000000000000000000000000000000000') {
-        chocomintMembers.add(toAddress);
-      }
+      if (tokenId === 1) vanillaMembers.add(toAddress);
+      else if (tokenId === 3) chocomintMembers.add(toAddress);
 
       if (tokenId === 0 && fromAddress !== '0x0000000000000000000000000000000000000000') {
         vanillaInviteCount++;
@@ -67,17 +57,6 @@ const initialize = async () => {
     const maxVanillaInvites = vanillaInviterCounts.size > 0 ? Math.max(...vanillaInviterCounts.values()) : 0;
     const maxChocomintInvites = chocomintInviterCounts.size > 0 ? Math.max(...chocomintInviterCounts.values()) : 0;
 
-    // 3. 既存グラフの埋め込みURLを生成
-    console.log('3. 既存のGraph CommonsグラフのURLを生成中...');
-    const embedUrl = GC_GRAPH_ID
-      ? `https://graphcommons.com/graphs/${GC_GRAPH_ID}/embed`
-      : null;
-
-    if (!embedUrl) {
-      console.warn('警告: .envファイルにGC_GRAPH_IDが設定されていません。グラフは表示されません。');
-    }
-
-    // 4. すべてのデータをキャッシュファイルに保存
     const processedData = {
       vanillaMembersCount: vanillaMembers.size,
       chocomintMembersCount: chocomintMembers.size,
@@ -86,30 +65,47 @@ const initialize = async () => {
       vanillaTopInviterCount: maxVanillaInvites,
       chocomintTopInviterCount: maxChocomintInvites,
       lastUpdated: new Date().toISOString(),
-      graphCommonsEmbedUrl: embedUrl
+      network: {
+          nodes: Array.from(new Set([...transfers.map(t => t.from), ...transfers.map(t => t.to)])).map(address => {
+              let type = 'normal-wallet';
+              if (address === '0x0000000000000000000000000000000000000000') type = 'mint-address';
+              else if (vanillaMembers.has(address)) type = 'vanilla-member';
+              else if (chocomintMembers.has(address)) type = 'chocomint-member';
+              return { id: address, type: type };
+          }),
+          links: transfers.map(t => ({
+              source: t.from,
+              target: t.to,
+              value: 1,
+              tokenId: parseInt(t.tokenID)
+          }))
+      }
     };
+
     await fs.writeFile(CACHE_FILE_PATH, JSON.stringify(processedData, null, 2));
-    console.log('--- 初期化処理が正常に完了しました --- ');
+    console.log(`  -> キャッシュファイル (${CACHE_FILE_PATH}) を正常に更新しました。`);
 
   } catch (error) {
-    console.error('\n--- 初期化処理中にエラーが発生しました ---');
+    console.error(`[${new Date().toISOString()}] --- データ更新処理中にエラーが発生しました ---`);
     console.error(error);
-    console.error('--- エラー詳細終わり ---\n');
   }
 };
 
-// === サーバー起動 ===
+// === APIエンドポイント ===
 app.get('/api/data', async (req, res) => {
   try {
     const cachedData = await fs.readFile(CACHE_FILE_PATH, 'utf-8');
+    console.log(`[${new Date().toISOString()}] APIリクエスト受信。キャッシュからデータを返します。`);
     res.json(JSON.parse(cachedData));
   } catch (error) {
-    res.status(500).json({ message: 'キャッシュデータの読み込みに失敗しました。サーバーを再起動してデータを再生成してください。' });
+    // キャッシュがない場合は、503 Service Unavailableを返すのが一般的
+    console.error(`[${new Date().toISOString()}] APIリクエスト受信。キャッシュファイルが見つかりません。`, error);
+    res.status(503).json({ message: 'サービス準備中です。しばらくしてから再度お試しください。' });
   }
 });
 
+// === サーバー起動と定期更新 ===
 app.listen(port, () => {
   console.log(`Backend server is running on http://localhost:${port}`);
-  // サーバー起動時に一度だけ、初期化処理を実行
-  initialize();
+  console.log('APIリクエストを待機しています...');
 });
