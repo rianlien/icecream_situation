@@ -179,7 +179,10 @@
                 このネットワークは、トークンの転送履歴を視覚化したものです。<br>
                 Graph Commonsにデータを送信し、埋め込みグラフとしてここに表示します。
             </p>
-            <div id="network-graph-container" class="relative w-full h-[600px] flex items-center justify-center bg-gray-100 rounded-lg shadow-inner overflow-hidden">
+            <button id="zoom-fit-button" class="mb-4 px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg shadow-md hover:bg-gray-700 transition duration-300 ease-in-out">
+                全体を表示
+            </button>
+            <div id="network-graph-container" class="relative w-full h-[800px] flex items-center justify-center bg-gray-100 rounded-lg shadow-inner overflow-hidden">
                 <!-- D3.jsによってグラフが描画されるSVG要素 -->
                 <svg id="d3-graph" class="w-full h-full"></svg>
                 <p id="graph-message" class="hidden absolute text-gray-500">グラフを読み込み中...</p>

@@ -4,17 +4,19 @@ import * as d3 from 'https://cdn.jsdelivr.net/npm/d3@7/+esm';
 
 // D3.jsでネットワークグラフを描画する関数
 export function drawNetworkGraph(nodes, links) {
-    console.log("Nodes received by drawNetworkGraph:", nodes);
-    console.log("Links received by drawNetworkGraph:", links);
     const container = document.getElementById('network-graph-container');
     if (!container) return;
     const width = container.clientWidth;
     const height = container.clientHeight;
 
-    // Initialize node positions if not already set
+    // Initialize node positions randomly near the center to avoid starting in a single spot
     nodes.forEach(node => {
-        if (node.x === undefined || isNaN(node.x)) node.x = width / 2;
-        if (node.y === undefined || isNaN(node.y)) node.y = height / 2;
+        if (node.x === undefined || isNaN(node.x)) {
+            node.x = width / 2 + (Math.random() - 0.5) * (width / 10);
+        }
+        if (node.y === undefined || isNaN(node.y)) {
+            node.y = height / 2 + (Math.random() - 0.5) * (height / 10);
+        }
     });
 
     const svg = d3.select("#d3-graph")
@@ -58,8 +60,6 @@ export function drawNetworkGraph(nodes, links) {
             .attr("fill", markerColors[key])
             .style("stroke", "none");
     }
-
-    
 
     // Link preprocessing to handle multiple links between the same two nodes
     const linkMap = new Map();
@@ -156,16 +156,56 @@ export function drawNetworkGraph(nodes, links) {
         });
 
     const simulation = d3.forceSimulation(nodes)
-        .force("link", d3.forceLink(links).id(d => d.id).distance(80))
-        .force("charge", d3.forceManyBody().strength(-300))
+        .force("link", d3.forceLink(links).id(d => d.id).distance(60))
+        .force("charge", d3.forceManyBody().strength(-200))
         .force("center", d3.forceCenter(width / 2, height / 2))
-        .on("tick", () => {
-            link.attr("d", linkArc);
+        .on("tick", ticked);
 
-            node
-                .attr("cx", d => d.x)
-                .attr("cy", d => d.y);
-        });
+    function ticked() {
+        link.attr("d", linkArc);
+        node.attr("cx", d => d.x).attr("cy", d => d.y);
+    }
+
+    // Set up the zoom-to-fit button
+    d3.select("#zoom-fit-button").on("click", () => {
+        const fullWidth = container.clientWidth;
+        const fullHeight = container.clientHeight;
+
+        if (nodes.length === 0) return;
+
+        // --- New logic to calculate bounds based on percentiles to ignore outliers ---
+        const xCoords = nodes.map(n => n.x).sort((a, b) => a - b);
+        const yCoords = nodes.map(n => n.y).sort((a, b) => a - b);
+
+        // Use the 2.5th and 97.5th percentile to capture the central 95% of the graph
+        const paddingPercentile = 0.025;
+        const lowerIndex = Math.floor(xCoords.length * paddingPercentile);
+        const upperIndex = Math.ceil(xCoords.length * (1 - paddingPercentile)) - 1;
+
+        const minX = xCoords[lowerIndex];
+        const maxX = xCoords[upperIndex];
+        const minY = yCoords[lowerIndex];
+        const maxY = yCoords[upperIndex];
+        // --- End of new logic ---
+
+        const bWidth = maxX - minX;
+        const bHeight = maxY - minY;
+
+        if (bWidth === 0 || bHeight === 0) return;
+
+        const midX = minX + bWidth / 2;
+        const midY = minY + bHeight / 2;
+        const scale = 0.95 * Math.min(fullWidth / bWidth, fullHeight / bHeight);
+        const translate = [fullWidth / 2 - scale * midX, fullHeight / 2 - scale * midY];
+
+        const newTransform = d3.zoomIdentity
+            .translate(translate[0], translate[1])
+            .scale(scale);
+
+        svg.transition()
+            .duration(750)
+            .call(zoom.transform, newTransform);
+    });
 
     node.call(d3.drag()
         .on("start", (event, d) => {
