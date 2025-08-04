@@ -10,6 +10,7 @@ const port = process.env.PORT || 3000;
 
 const POLYGONSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY;
 const TOKEN_CONTRACT_ADDRESS = '0xd73140ee4b85d9a7797573692ef97c7d3d0cd776';
+//const TOKEN_CONTRACT_ADDRESS = '0x144219C8074E895E666e5C36b71AC7D37443CcDe';
 const CACHE_FILE_PATH = path.join(__dirname, 'data.json');
 const UPDATE_INTERVAL_MS = 60 * 60 * 1000; // 1時間
 
