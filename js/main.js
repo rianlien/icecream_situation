@@ -96,7 +96,7 @@ async function fetchDataAndDisplay() {
 
         // マイルストーンの更新
         const totalInviteActions = data.vanillaInviteCount + data.chocomintInviteCount;
-        const milestoneGoal = 1000; // 目標値はフロントで保持
+        const milestoneGoal = 500; // 目標値はフロントで保持
         const milestoneTitle = document.getElementById('milestone-title');
         const milestoneMessageContainer = document.getElementById('milestone-message-container');
         const milestoneProgressCircle = document.getElementById('milestone-progress-circle');
