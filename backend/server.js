@@ -8,7 +8,7 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
-const POLYGONSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY;
+const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY;
 const TOKEN_CONTRACT_ADDRESS = '0xd73140ee4b85d9a7797573692ef97c7d3d0cd776';
 //const TOKEN_CONTRACT_ADDRESS = '0x144219C8074E895E666e5C36b71AC7D37443CcDe';
 const CACHE_FILE_PATH = path.join(__dirname, 'data.json');
@@ -21,13 +21,38 @@ app.use(express.json());
 const fetchAndCacheData = async () => {
   console.log(`[${new Date().toISOString()}] --- データ更新処理を開始 ---`);
   try {
-    console.log('  -> PolygonScanから最新データを取得します。');
-    if (!POLYGONSCAN_API_KEY) throw new Error('POLYGONSCAN_API_KEYが設定されていません。');
-    const url = `https://api.polygonscan.com/api?module=account&action=tokennfttx&contractaddress=${TOKEN_CONTRACT_ADDRESS}&page=1&offset=10000&sort=asc&apikey=${POLYGONSCAN_API_KEY}`;
-    const response = await fetch(url);
+    console.log('  -> Alchemyから最新データを取得します。');
+    if (!ALCHEMY_API_KEY) throw new Error('ALCHEMY_API_KEYが設定されていません。');
+    const ALCHEMY_API_URL = `https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`;
+    const response = await fetch(ALCHEMY_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'alchemy_getAssetTransfers',
+        params: [
+          {
+            fromBlock: "0x0",
+            toBlock: "latest",
+            contractAddresses: [TOKEN_CONTRACT_ADDRESS],
+            category: ["erc721"],
+            withMetadata: false,
+            excludeZeroValue: true,
+            maxCount: "0x3e8" // 1000 in hex
+          },
+        ],
+      }),
+    });
     const data = await response.json();
-    if (data.status !== '1') throw new Error(`PolygonScanからのデータ取得失敗: ${data.message}`);
-    const transfers = data.result;
+    if (!data.result || !data.result.transfers) throw new Error(`Alchemyからのデータ取得失敗: ${JSON.stringify(data.error || data)}`);
+    const transfers = data.result.transfers.map(t => ({
+      from: t.from,
+      to: t.to,
+      tokenID: parseInt(t.tokenId, 16), // AlchemyのtokenIdは16進数なので変換
+    }));
     console.log(`     ${transfers.length}件のトランザクションを取得しました。`);
 
     console.log('  -> フロントエンド用のデータを集計・加工中...');
@@ -38,10 +63,10 @@ const fetchAndCacheData = async () => {
     let vanillaInviterCounts = new Map();
     let chocomintInviterCounts = new Map();
 
-    transfers.forEach(tx => {
-      const tokenId = parseInt(tx.tokenID);
-      const fromAddress = tx.from.toLowerCase();
-      const toAddress = tx.to.toLowerCase();
+    transfers.forEach(t => {
+      const tokenId = t.tokenID;
+      const fromAddress = t.from.toLowerCase();
+      const toAddress = t.to.toLowerCase();
 
       if (tokenId === 1) vanillaMembers.add(toAddress);
       else if (tokenId === 3) chocomintMembers.add(toAddress);
